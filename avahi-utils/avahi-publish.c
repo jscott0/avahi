@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <locale.h>
+#include <netdb.h>
 
 #include <avahi-common/simple-watch.h>
 #include <avahi-common/error.h>
@@ -213,7 +214,7 @@ static void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UN
 
 static void help(FILE *f, const char *argv0) {
     fprintf(f,
-            _("%s [options] %s <name> <type> <port> [<txt ...>]\n"
+            _("%s [options] %s <name> <type> <port or service name> [<txt ...>]\n"
               "%s [options] %s <host-name> <address>\n\n"
               "    -h --help            Show this help\n"
               "    -V --version         Show version\n"
@@ -326,8 +327,14 @@ static int parse_command_line(Config *c, const char *argv0, int argc, char *argv
         p = strtol(argv[optind+2], &e, 0);
 
         if (errno != 0 || *e || p < 0 || p > 0xFFFF) {
-            fprintf(stderr, _("Failed to parse port number: %s\n"), argv[optind+2]);
-            return -1;
+            /* It might be a service name. */
+            const struct servent *const serv = getservbyname(argv[optind+2], NULL);
+            if(serv) {
+	        p = serv->s_port;
+            } else {
+                fprintf(stderr, _("Failed to parse port number/service name: %s\n"), argv[optind+2]);
+                return -1;
+            }
         }
 
         c->port = p;
